@@ -1,0 +1,40 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+migrate_working_dir/
+.widget_preview/
+app.*.symbols
+app.*.map.json
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Wächter lokal
+waechter/.zustand-lokal.json
+waechter/__pycache__/
+waechter/tests/__pycache__/
+*.pyc
+
+# Geheimnisse – nie ins Repository
+dienstkonto*.json
+*-firebase-adminsdk-*.json
+
+# Lokale Hilfsdateien (Auftrags-Skript, Firebase-App-Konfiguration, fertige APK)
+werkzeuge/log*.txt
+werkzeuge/schluessel-log.txt
+werkzeuge/auftrag.txt
+werkzeuge/commit.txt
+android/app/google-services.json
+StellenRadar.apk
+werkzeuge/github-url.txt
+werkzeuge/urls.txt
+werkzeuge/tls-hosts.txt

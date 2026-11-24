@@ -1,0 +1,19 @@
+{
+  "_hinweis": "Quellen des StellenRadar-Wächters. Neue SuccessFactors-Firma: Eintrag unter successfactors ergänzen (Host aus der Karriereseite, z. B. jobs.firma.com).",
+  "jobsch": {
+    "hosts": ["www.jobs.ch", "www.jobup.ch"],
+    "praktikum_typ": "3",
+    "max_seiten": 30,
+    "suchbegriffe": ["trainee", "young talent", "graduate program", "absolventenprogramm", "berufseinstieg ingenieur", "internship engineering", "hochschulpraktikum"]
+  },
+  "successfactors": [
+    {"id": "wingd", "firma": "WinGD", "host": "jobs.wingd.com"},
+    {"id": "liebherr", "firma": "Liebherr", "host": "careers.liebherr.com"},
+    {"id": "beyondgravity", "firma": "Beyond Gravity", "host": "careers.beyondgravity.com"},
+    {"id": "buehler", "firma": "Bühler", "host": "jobs2.buhlergroup.com"},
+    {"id": "svti", "firma": "SVTI-Gruppe", "host": "jobs.svti-gruppe.ch"},
+    {"id": "tuevsued", "firma": "TÜV SÜD", "host": "jobs.tuvsud.com"}
+  ],
+  "sf_suchbegriffe": ["praktikum", "praktikant", "intern", "internship", "trainee", "young talent", "graduate"],
+  "laender": ["CH", "LI", "DE", "AT"]
+}

@@ -1,0 +1,58 @@
+name: Stellen-Wächter
+
+# Alle 2 Stunden neue Praktika/Trainee-Stellen suchen. Läuft ohne KI, kostet keine Tokens.
+# Öffentliches Repository: GitHub Actions sind dafür kostenlos und unbegrenzt.
+# Krumme Minute (17), weil GitHub zur vollen Stunde oft stark verzögert.
+on:
+  schedule:
+    - cron: '17 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_push:
+        description: 'Nur eine Test-Benachrichtigung ans Handy senden'
+        type: boolean
+        default: false
+
+concurrency:
+  group: stellen-waechter
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  suchen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: waechter
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: waechter/requirements.txt
+
+      - name: Pakete
+        run: pip install --disable-pip-version-check -q -r waechter/requirements.txt
+
+      - name: Tests
+        working-directory: waechter
+        run: python -m unittest discover tests
+
+      - name: Stellen suchen
+        if: ${{ !inputs.test_push }}
+        working-directory: waechter
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: python waechter.py
+
+      - name: Test-Benachrichtigung
+        if: ${{ inputs.test_push }}
+        working-directory: waechter
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: python waechter.py --test-push

@@ -1,0 +1,51 @@
+name: stellenradar
+description: "StellenRadar – neue Praktika und Trainee-Stellen im Maschinenbau sofort aufs Handy."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Firebase: Datenbank (Treffer) und Push-Benachrichtigungen.
+  # Bewusst die Versionen vom September 2026; die Major-Versionen von Mitte Oktober sind noch ganz neu.
+  firebase_core: ^4.15.0
+  cloud_firestore: ^6.10.0
+  firebase_messaging: ^16.7.0
+
+  url_launcher: ^6.3.3
+  shared_preferences: ^2.5.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  fonts:
+    - family: SpaceGrotesk
+      fonts:
+        - asset: assets/fonts/SpaceGrotesk-500.ttf
+          weight: 500
+        - asset: assets/fonts/SpaceGrotesk-600.ttf
+          weight: 600
+        - asset: assets/fonts/SpaceGrotesk-700.ttf
+          weight: 700
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-400.ttf
+          weight: 400
+        - asset: assets/fonts/Manrope-500.ttf
+          weight: 500
+        - asset: assets/fonts/Manrope-600.ttf
+          weight: 600
+        - asset: assets/fonts/Manrope-700.ttf
+          weight: 700
