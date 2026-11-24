@@ -4,7 +4,7 @@
     "hosts": ["www.jobs.ch", "www.jobup.ch"],
     "praktikum_typ": "3",
     "max_seiten": 30,
-    "suchbegriffe": ["trainee", "young talent", "graduate program", "absolventenprogramm", "berufseinstieg ingenieur", "internship engineering", "hochschulpraktikum"]
+    "suchbegriffe": ["praktikum maschinenbau", "praktikum konstruktion", "praktikum entwicklung", "praktikant engineering", "trainee", "young talent", "graduate program", "absolventenprogramm", "berufseinstieg ingenieur", "internship engineering", "hochschulpraktikum"]
   },
   "successfactors": [
     {"id": "wingd", "firma": "WinGD", "host": "jobs.wingd.com"},

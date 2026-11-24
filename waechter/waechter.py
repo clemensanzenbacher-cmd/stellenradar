@@ -36,7 +36,8 @@ TIMEOUT = (6, 15)
 WEG_BEHALTEN = timedelta(days=7)        # verschwundene Stellen so lange als „nicht mehr online“ zeigen
 SAMMEL_PUSH_AB = 4                      # ab so vielen neuen Stellen nur eine Sammelmeldung
 MAX_LINKPRUEFUNGEN = 60
-FILTER_VERSION = 2                      # neue Filter: alte Liste nicht als "nicht mehr online" übernehmen
+MAX_ALTER = timedelta(days=150)          # ältere jobs.ch-Inserate ignorieren
+FILTER_VERSION = 3                      # neue Filter: alte Liste nicht als "nicht mehr online" übernehmen
 abgelehnt: list = []                  # (Stelle, Grund) aus der Volltextprüfung, für den Trockenlauf
 
 
@@ -97,6 +98,24 @@ STARK = re.compile(r"maschinenbau|mechanical|m[ée]canique|konstruktion|aerospac
                    r"avionic|propulsion|mechatron|fem\b|simulation|hydraulik|hydraulic|fertigungstechn|"
                    r"produktionstechn|verfahrenstechn|werkstoff|robotik|robotics|drohne|drone", re.I)
 
+# Im Titel: klar anderes Fachgebiet (trifft „Maschinenbau“ nicht, \bbau\b nur als eigenes Wort)
+NICHT_MB_TITEL = re.compile(r"geb[äa]udetechn|haustechn|umwelttechn|\bbau\b|bauingenieur|hochbau|tiefbau|interior|"
+                            r"innenarchitekt|planer|unterhalt|\befz\b|lean (?:academy|training)|opex|\bcvc\b|\bhlk\b|"
+                            r"sanit[äa]r|elektrotechn|elektroinstall|elektriker|electrical|electronic|[ée]lectroni|"
+                            r"power electronics|energy management|energiemanagement|building automation|"
+                            r"approvisionnement|achats|purchasing|einkauf|politik|politi[cq]|drohnenabwehr|\bit-|"
+                            r"informatik|bounce|\bsrf\b", re.I)
+
+# Anzeigentext verlangt ausdrücklich ein Maschinenbau-nahes Studium
+STUDIUM_MB = re.compile(r"maschinenbau|maschineningenieur|maschinentechnik|mechanical engineering|mechanical engineer|"
+                        r"g[ée]nie m[ée]canique|ing[ée]nierie m[ée]canique|ing[ée]nieur en m[ée]canique|"
+                        r"luft- und raumfahrt|aerospace|a[ée]ronauti|mechatroni|fahrzeugtechnik|verfahrenstechnik|"
+                        r"produktionstechnik|fertigungstechnik|werkstofftechnik|(?<!bau)ingenieurwissenschaft|"
+                        r"engineering degree|degree in (?:mechanical |aerospace |)engineering|ingenieurstudium", re.I)
+
+# jobs.ch-Kategorien (documents[].categories[].path) für Maschinenbau/Technik/Ingenieurwesen
+JOBSCH_MB_KAT = {109, 188, 189, 190, 195, 196, 197, 198, 199, 200, 201, 202}
+
 # Volltext der Anzeige: Hinweise, dass wirklich Maschinenbau/Aerospace gesucht wird …
 VOLL_ING = re.compile(r"maschinenbau|maschineningenieur|mechanical engineer|g[ée]nie m[ée]canique|"
                       r"ing[ée]nierie m[ée]canique|ing[ée]nieur en m[ée]canique|konstruktion|mechatroni|"
@@ -135,28 +154,38 @@ DE_WOERTER = re.compile(r"praktik|ingenieur(?!e)|\bim bereich\b|\bfür\b|\bund\b
 FR_WOERTER = re.compile(r"stagiaire|\bstage\b|ing[ée]nieur|\bh/f\b|\bf/h\b|d[ée]veloppement|\ben\b |\bdes\b ", re.I)
 
 
-def passt(titel: str, text: str = "") -> tuple[bool, str]:
+def passt(titel: str, text: str = "", kategorien: list[int] | None = None) -> tuple[bool, str]:
     """(passt, grund). Titel entscheidet über die Art, Titel+Vorschau über das Fachgebiet."""
     t = titel.strip()
     if NICHT_ART.search(t):
         return False, "art-ausgeschlossen"
     if not ART.search(t):
         return False, "keine-praktikumsstelle"
+    if NICHT_MB_TITEL.search(t):
+        return False, "anderes-fachgebiet"
     stark = STARK.search(t) or STARK.search(text[:600])
     if NICHT_FACH.search(t) and not STARK.search(t):    # fremdes Fach im Titel: nur ein starkes Titelwort rettet
         return False, "anderes-fachgebiet"
     if FACH.search(t) or stark:
+        return True, ""
+    if kategorien and any(k in JOBSCH_MB_KAT for k in kategorien):
         return True, ""
     if text and FACH.search(text[:600]) and not NICHT_FACH.search(text[:300]):
         return True, ""
     return False, "kein-maschinenbau"
 
 
-def passt_volltext(titel: str, volltext: str) -> tuple[bool, str]:
-    """Zweite Stufe: Die ganze Stellenbeschreibung muss wirklich nach Maschinenbau/Aerospace klingen."""
+def passt_volltext(titel: str, volltext: str, kategorien: list[int] | None = None) -> tuple[bool, str]:
+    """Zweite Stufe: Die ganze Stellenbeschreibung muss wirklich nach Maschinenbau/Aerospace klingen.
+
+    Angenommen wird nur, wenn der Titel stark fachlich ist, die jobs.ch-Kategorie Maschinenbau/Technik ist
+    oder der Anzeigentext ausdrücklich ein Maschinenbau-nahes Studium nennt."""
     titel_stark = bool(STARK.search(titel))
+    kat = bool(kategorien and any(k in JOBSCH_MB_KAT for k in kategorien))
     if not volltext:
-        return titel_stark, "" if titel_stark else "keine-beschreibung"
+        if titel_stark or kat:
+            return True, ""
+        return False, "keine-beschreibung"
     ing = {m.lower() for m in VOLL_ING.findall(volltext)}
     fremd = {m.lower() for m in FREMD.findall(volltext)}
     nah = {m.lower() for m in NAH.findall(volltext)}
@@ -164,7 +193,7 @@ def passt_volltext(titel: str, volltext: str) -> tuple[bool, str]:
         return False, "anderes-studium: " + sorted(fremd)[0]
     if len(fremd) + len(nah) > len(ing) and not titel_stark:
         return False, "anderes-studium: " + sorted(fremd | nah)[0]
-    if titel_stark or ing:
+    if titel_stark or kat or STUDIUM_MB.search(volltext):
         return True, ""
     return False, "beschreibung-ohne-maschinenbau"
 
@@ -197,10 +226,12 @@ class Stelle:
     sprachen: list[str] = field(default_factory=list)
     vorschau: str = ""
     volltext: str = ""                     # ganze Beschreibung, nur zum Filtern (wird nicht gespeichert)
+    kategorien: list[int] = field(default_factory=list)   # jobs.ch-Kategorien, nur zum Filtern
 
     def fuer_speicher(self) -> dict:
         d = asdict(self)
         d.pop("volltext", None)
+        d.pop("kategorien", None)
         d["englischPflicht"] = d.pop("englisch_pflicht")
         return d
 
@@ -241,10 +272,15 @@ def _jobsch_dokument(d: dict, host: str) -> Stelle | None:
                 pass
     titel = _sauber(d.get("title", ""))
     vorschau = _sauber(d.get("preview", ""))
+    kategorien = []
+    for k in d.get("categories") or []:
+        for teil in str((k or {}).get("path", "")).strip("/").split("/"):
+            if teil.isdigit():
+                kategorien.append(int(teil))
     return Stelle(id="jc-" + d["job_id"], titel=titel, firma=_sauber(d.get("company_name") or ""),
                   ort=_sauber(d.get("place") or ""), land="CH", url=url, quelle=host.replace("www.", ""),
                   datum=datum, sprache=sprache(titel, vorschau), englisch_pflicht=englisch,
-                  sprachen=sprachen, vorschau=vorschau[:280])
+                  sprachen=sprachen, vorschau=vorschau[:280], kategorien=kategorien)
 
 
 def hole_jobsch(konfig: dict, s: requests.Session) -> tuple[list[Stelle], list[str]]:
@@ -267,6 +303,12 @@ def hole_jobsch(konfig: dict, s: requests.Session) -> tuple[list[Stelle], list[s
                 for d in daten.get("documents", []):
                     if d.get("is_active") is False:
                         continue
+                    erst = d.get("initial_publication_date") or d.get("publication_date") or ""
+                    try:
+                        if erst and jetzt() - datetime.fromisoformat(erst) > MAX_ALTER:
+                            continue
+                    except (ValueError, TypeError):
+                        pass
                     st = _jobsch_dokument(d, host)
                     if st and st.id not in stellen:
                         stellen[st.id] = st
@@ -407,7 +449,7 @@ def sammeln(konfig: dict) -> tuple[list[Stelle], dict[str, dict]]:
             continue
         if NICHT_FIRMA.search(st.firma):
             continue
-        ok, _ = passt(st.titel, st.vorschau)
+        ok, _ = passt(st.titel, st.vorschau, st.kategorien)
         if ok:
             gefiltert.setdefault(st.id, st)
     # Zweite Stufe: ganze Beschreibung lesen (jobs.ch über die Detail-API, Firmenseiten aus dem RSS)
@@ -418,7 +460,7 @@ def sammeln(konfig: dict) -> tuple[list[Stelle], dict[str, dict]]:
     abgelehnt.clear()
     for sid in list(gefiltert):
         st = gefiltert[sid]
-        ok, grund = passt_volltext(st.titel, st.volltext or st.vorschau)
+        ok, grund = passt_volltext(st.titel, st.volltext or st.vorschau, st.kategorien)
         if not ok:
             abgelehnt.append((st, grund))
             del gefiltert[sid]

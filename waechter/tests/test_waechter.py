@@ -25,7 +25,13 @@ class FilterTest(unittest.TestCase):
                       "Internship – Data Engineer - Optimization of Data Delivery",
                       "Praktikant:in Administration 80-100%",
                       "Stagiaire MPC 3+1",
-                      "Praktikant Bauingenieurwesen 4-6 Monate"]:
+                      "Praktikant Bauingenieurwesen 4-6 Monate",
+                      "Praktikant:in SRF Bounce",
+                      "Praktikant:in Gebäudetechnik 80-100% (6-12 Monate)",
+                      "Hochschulpraktikant/-in Projekt EIGER: Drohnen, Drohnenabwehr und Robotik",
+                      "Praktikum 3D CAD Planer:in",
+                      "Praktikum Elektrotechnik (m/w/d)",
+                      "Praktikum Einkauf Maschinenbau"]:
             self.assertFalse(w.passt(titel)[0], titel)
 
     def test_volltext(self):
@@ -45,6 +51,23 @@ class FilterTest(unittest.TestCase):
         self.assertFalse(w.passt_volltext("Praktikum Qualität", "Du unterstützt unser Team im Alltag.")[0])
         # Fremdes Fach im Titel lässt sich nicht durch die Beschreibung retten
         self.assertFalse(w.passt("AI Agent Builder Graduate Opportunity", "Simulation of agents")[0])
+
+    def test_gesamt(self):
+        def gesamt(titel, text="", kat=None):
+            return w.passt(titel, text, kat)[0] and w.passt_volltext(titel, text, kat)[0]
+        self.assertTrue(gesamt("Praktikum im Bereich Konstruktion (m/w/d)"))
+        self.assertTrue(gesamt("Young Talent - Simulation (m/f/x)"))
+        self.assertTrue(gesamt("Praktikum Maschinenbau (m/w/d)"))
+        self.assertFalse(gesamt("Technische:r Praktikant:in"))
+        self.assertFalse(gesamt("Internship – Data Engineer"))
+        # ohne Maschinenbau-Studium im Text: raus, mit: drin
+        titel = "Intern Materials & Processes Engineer (all genders)"
+        self.assertFalse(gesamt(titel, "Du unterstützt unser Team bei spannenden Projekten. " * 10))
+        self.assertTrue(gesamt(titel, "Du studierst Maschinenbau, Werkstofftechnik oder Aerospace."))
+        self.assertFalse(gesamt(titel, "Du studierst Politikwissenschaften. " * 5))
+        # jobs.ch-Kategorie Maschinenbau zählt
+        self.assertTrue(gesamt("Praktikum Forschungsprojekt (m/w/d)", "", [98, 109, 199]))
+        self.assertFalse(gesamt("Praktikum Forschungsprojekt (m/w/d)", "", [97, 100, 121]))
 
     def test_sprache(self):
         self.assertEqual(w.sprache("Praktikum im Bereich Konstruktion (m/w/d)"), "de")
