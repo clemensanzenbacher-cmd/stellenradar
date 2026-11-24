@@ -36,6 +36,8 @@ TIMEOUT = (6, 15)
 WEG_BEHALTEN = timedelta(days=7)        # verschwundene Stellen so lange als „nicht mehr online“ zeigen
 SAMMEL_PUSH_AB = 4                      # ab so vielen neuen Stellen nur eine Sammelmeldung
 MAX_LINKPRUEFUNGEN = 60
+FILTER_VERSION = 2                      # neue Filter: alte Liste nicht als "nicht mehr online" übernehmen
+abgelehnt: list = []                  # (Stelle, Grund) aus der Volltextprüfung, für den Trockenlauf
 
 
 def jetzt() -> datetime:
@@ -55,16 +57,15 @@ NICHT_ART = re.compile(r"sch[üu]ler|schnupper|lehrstelle|\blernende|lehrling|\b
                        r"^(master|bachelor|abschluss)arbeit|^(master|bachelor)'?s? thesis|^thesis\b", re.I)
 
 FACH = re.compile(r"maschinenbau|mechani|m[ée]cani|konstrukt|engineer|ingenieur|ing[ée]nieur|engineering|"
-                  r"entwickl|development|d[ée]veloppement|\br&d\b|\bf&e\b|forschung|research|produktion|"
+                  r"entwickl|development|d[ée]veloppement|\br&d\b|\bf&e\b|produktion|"
                   r"production|fertigung|manufactur|qualit|quality|\btest|validier|validation|simulation|\bfem\b|"
                   r"finite.?element|\bcad\b|luftfahrt|raumfahrt|aerospace|a[ée]ronaut|\bspace|aviation|avionic|"
                   r"flugzeug|aircraft|helikopter|propulsion|antrieb|hydraulik|hydraulic|mechatron|werkstoff|"
-                  r"material|prozess|process|technik|technical|technisch|technique|industrial|industriel|"
-                  r"automati|robot|anlage|instandhaltung|maintenance|wartung|pr[üu]f|inspektion|inspection|"
-                  r"sachverst|kfz|fahrzeug|vehicle|v[ée]hicule|engine|motor|turbin|verfahrenstechn|thermo|"
-                  r"str[öo]mung|fluid|lean|kvp|industrialis|montage|assembly|maschinen|machine|metall|"
-                  r"schwei[sß]|welding|kunststoff|additive|3d.?druck|sensor|mess|measurement|physik|"
-                  r"energietechn|geb[äa]udetechn|hvac|druckger|rail|bahntechn|fahrzeugtechn", re.I)
+                  r"material|technik|technical|technisch|technique|industrial|industriel|"
+                  r"automati|robot|drohne|drone|anlagenbau|instandhaltung|maintenance|wartung|pr[üu]fstand|"
+                  r"inspektion|inspection|sachverst|kfz|fahrzeug|vehicle|v[ée]hicule|engine|motor|turbin|"
+                  r"verfahrenstechn|thermo|str[öo]mung|fluid|lean|kvp|industrialis|montage|assembly|maschinen|"
+                  r"machine|metall|schwei[sß]|welding|kunststoff|additive|3d.?druck|druckger|fahrzeugtechn", re.I)
 
 NICHT_FACH = re.compile(r"marketing|kommunikation|communication|\bpr\b|social media|\bhr\b|human resources|"
                         r"personal(?:wesen|abteilung)|recruit|talent acquisition|finance|finanz|controlling|"
@@ -74,7 +75,12 @@ NICHT_FACH = re.compile(r"marketing|kommunikation|communication|\bpr\b|social me
                         r"medizin|arzt|psycholog|bank|versicherung|helpdesk|it.?support|service desk|"
                         r"informatik|software|data scien|data analy|business analy|grafik|ux|ui design|"
                         r"event|tourism|logistik|logistics|supply chain|immobilien|real estate|architekt|"
-                        r"bauleit|tiefbau|hochbau|umwelt(?!techn)|biolog|chemie(?!ingenieur)|labor|"
+                        r"bauleit|tiefbau|hochbau|umwelt|biolog|chemie(?!ingenieur)|labor|"
+                        r"politi|public affairs|public policy|unterhaltung|entertainment|medien|\bmedia\b|radio|"
+                        r"fernseh|television|\bfilm|kultur|museum|bibliothek|library|business development|"
+                        r"organi[sz]ation(?:al)? development|personalentwicklung|wirtschaftspr|statisti|[öo]konom|"
+                        r"economic|research assistant|geb[äa]udetechn|geb[äa]udeautomation|building|\bcvc\b|hvac|"
+                        r"sanit[äa]r|heizung|interior|innenarchitekt|innenausbau|bureau d'[ée]tudes|"
                         r"consult|beratung|strategy|strategie|project management office|office|sekretariat|"
                         r"assistenz|customer service|kundendienst|callcenter|ressources humaines|\brh\b|recrutement|"
                         r"administration|evaluation|electrical|electronic|elektro(?!mechan)|elektronik|"
@@ -89,7 +95,36 @@ NICHT_FIRMA = re.compile(r"spital|klinik|hospital|bank|banque|assura|versicherun
 # Stark fachliche Wörter heben einen Negativtreffer wieder auf (z. B. „Software für Maschinensteuerung“).
 STARK = re.compile(r"maschinenbau|mechanical|m[ée]canique|konstruktion|aerospace|luftfahrt|raumfahrt|"
                    r"avionic|propulsion|mechatron|fem\b|simulation|hydraulik|hydraulic|fertigungstechn|"
-                   r"produktionstechn|verfahrenstechn|werkstoff", re.I)
+                   r"produktionstechn|verfahrenstechn|werkstoff|robotik|robotics|drohne|drone", re.I)
+
+# Volltext der Anzeige: Hinweise, dass wirklich Maschinenbau/Aerospace gesucht wird …
+VOLL_ING = re.compile(r"maschinenbau|maschineningenieur|mechanical engineer|g[ée]nie m[ée]canique|"
+                      r"ing[ée]nierie m[ée]canique|ing[ée]nieur en m[ée]canique|konstruktion|mechatroni|"
+                      r"luft- und raumfahrt|luftfahrt|raumfahrt|aerospace|a[ée]ronauti|verfahrenstechnik|"
+                      r"werkstofftechnik|werkstoffwissenschaft|materials? science|materials? engineering|"
+                      r"fertigungstechnik|produktionstechnik|wirtschaftsingenieur|industrial engineering|"
+                      r"g[ée]nie industriel|(?<!bau)ingenieurwissenschaft|(?<!bau)ingenieurwesen|engineering degree|"
+                      r"degree in (?:mechanical |aerospace |)engineering|fahrzeugtechnik|automotive engineering|"
+                      r"solidworks|catia|\bcreo\b|siemens nx|autodesk inventor|\bansys|abaqus|\bfem\b|"
+                      r"finite.?element|\bcad\b|hydraulik|hydraulics|thermodynami|str[öo]mungsmechanik|"
+                      r"fluid dynamics|\bcfd\b|technische mechanik|\bmechanics\b|mikrotechnik|microtechnique|"
+                      r"robotik|robotics|antriebstechnik|motorenentwicklung|engine development|prüfstand|"
+                      r"test bench|maschinen- und anlagenbau|systems engineering|systemtechnik", re.I)
+
+# … und Hinweise auf ein ganz anderes Studium (z. B. Politikwissenschaft).
+FREMD = re.compile(r"politikwissenschaft|politologie|political science|sciences? politiques?|\bpolitics\b|"
+                   r"internationale beziehungen|international relations|public affairs|public policy|"
+                   r"sozialwissenschaft|social sciences?|geisteswissenschaft|humanities|"
+                   r"kommunikationswissenschaft|medienwissenschaft|journalismus|journalism|"
+                   r"rechtswissenschaft|\bjura\b|soziologie|sociology|geschichtswissenschaft|"
+                   r"kulturwissenschaft|psychologie|psychology|p[äa]dagogik|erziehungswissenschaft|"
+                   r"germanistik|anglistik|linguistik|theologie|kunstgeschichte|"
+                   r"tourismus|hotellerie|gesundheitswissenschaft|pflegewissenschaft|"
+                   r"innenarchitekt|interior design", re.I)
+
+# Benachbarte Fächer: zählen nur, wenn sie in der Beschreibung überwiegen.
+NAH = re.compile(r"betriebswirtschaft|\bbwl\b|business administration|volkswirtschaft|economics|"
+                 r"bauingenieur|civil engineering|g[ée]nie civil|informatik|computer science", re.I)
 
 LAENDER_NAMEN = {"schweiz": "CH", "switzerland": "CH", "suisse": "CH", "liechtenstein": "LI",
                  "deutschland": "DE", "germany": "DE", "österreich": "AT", "austria": "AT"}
@@ -108,13 +143,30 @@ def passt(titel: str, text: str = "") -> tuple[bool, str]:
     if not ART.search(t):
         return False, "keine-praktikumsstelle"
     stark = STARK.search(t) or STARK.search(text[:600])
-    if NICHT_FACH.search(t) and not stark:
+    if NICHT_FACH.search(t) and not STARK.search(t):    # fremdes Fach im Titel: nur ein starkes Titelwort rettet
         return False, "anderes-fachgebiet"
     if FACH.search(t) or stark:
         return True, ""
     if text and FACH.search(text[:600]) and not NICHT_FACH.search(text[:300]):
         return True, ""
     return False, "kein-maschinenbau"
+
+
+def passt_volltext(titel: str, volltext: str) -> tuple[bool, str]:
+    """Zweite Stufe: Die ganze Stellenbeschreibung muss wirklich nach Maschinenbau/Aerospace klingen."""
+    titel_stark = bool(STARK.search(titel))
+    if not volltext:
+        return titel_stark, "" if titel_stark else "keine-beschreibung"
+    ing = {m.lower() for m in VOLL_ING.findall(volltext)}
+    fremd = {m.lower() for m in FREMD.findall(volltext)}
+    nah = {m.lower() for m in NAH.findall(volltext)}
+    if fremd and not titel_stark and len(ing) < 2:
+        return False, "anderes-studium: " + sorted(fremd)[0]
+    if len(fremd) + len(nah) > len(ing) and not titel_stark:
+        return False, "anderes-studium: " + sorted(fremd | nah)[0]
+    if titel_stark or ing:
+        return True, ""
+    return False, "beschreibung-ohne-maschinenbau"
 
 
 def sprache(titel: str, text: str = "") -> str:
@@ -144,9 +196,11 @@ class Stelle:
     englisch_pflicht: bool | None = None   # nur bei jobs.ch bekannt
     sprachen: list[str] = field(default_factory=list)
     vorschau: str = ""
+    volltext: str = ""                     # ganze Beschreibung, nur zum Filtern (wird nicht gespeichert)
 
     def fuer_speicher(self) -> dict:
         d = asdict(self)
+        d.pop("volltext", None)
         d["englischPflicht"] = d.pop("englisch_pflicht")
         return d
 
@@ -221,6 +275,19 @@ def hole_jobsch(konfig: dict, s: requests.Session) -> tuple[list[Stelle], list[s
     return list(stellen.values()), fehler
 
 
+def hole_jobsch_volltext(st: Stelle, s: requests.Session) -> str:
+    """Ganze Beschreibung einer jobs.ch/jobup.ch-Anzeige (öffentliche Detail-API)."""
+    host = "www.jobup.ch" if st.quelle == "jobup.ch" else "www.jobs.ch"
+    try:
+        r = s.get(f"https://{host}/api/v1/public/search/job/{st.id[3:]}", timeout=TIMEOUT)
+        r.raise_for_status()
+        d = r.json()
+    except Exception:  # noqa: BLE001
+        return ""
+    teile = [d.get(k) or "" for k in ("template_profession", "template_lead_text", "template_text", "template")]
+    return _sauber(" ".join(t for t in teile if isinstance(t, str)))
+
+
 # ---------------------------------------------------------------- Quelle: SAP SuccessFactors (RSS)
 
 _ORT = re.compile(r"\s*\(([^()]*)\)\s*$")
@@ -262,7 +329,7 @@ def parse_sf_rss(xml: str, firma: dict) -> list[Stelle]:
         text = _sauber(bm.group(1)) if bm else ""
         stellen.append(Stelle(id=f"sf-{firma['id']}-{jm.group(1)}", titel=titel, firma=firma["firma"], ort=ort,
                               land=land, url=link, quelle=firma["host"], datum=datum,
-                              sprache=sprache(titel, text), vorschau=text[:280]))
+                              sprache=sprache(titel, text), vorschau=text[:280], volltext=text))
     return stellen
 
 
@@ -343,6 +410,18 @@ def sammeln(konfig: dict) -> tuple[list[Stelle], dict[str, dict]]:
         ok, _ = passt(st.titel, st.vorschau)
         if ok:
             gefiltert.setdefault(st.id, st)
+    # Zweite Stufe: ganze Beschreibung lesen (jobs.ch über die Detail-API, Firmenseiten aus dem RSS)
+    ohne_text = [st for st in gefiltert.values() if not st.volltext and st.id.startswith("jc-")]
+    with cf.ThreadPoolExecutor(max_workers=8) as pool:
+        for st, text in zip(ohne_text, pool.map(lambda x: hole_jobsch_volltext(x, s), ohne_text)):
+            st.volltext = text
+    abgelehnt.clear()
+    for sid in list(gefiltert):
+        st = gefiltert[sid]
+        ok, grund = passt_volltext(st.titel, st.volltext or st.vorschau)
+        if not ok:
+            abgelehnt.append((st, grund))
+            del gefiltert[sid]
     # Gleiche Stelle auf jobs.ch und jobup.ch / Firmenseite: nur einmal (Firma + Titel)
     eindeutig: dict[str, Stelle] = {}
     for st in sorted(gefiltert.values(), key=lambda x: (not x.id.startswith("sf-"), x.quelle != "jobs.ch")):
@@ -371,6 +450,8 @@ def lauf(args) -> int:
 
     bekannt: dict = zustand.get("bekannt", {}) or {}          # id -> erstmals gesehen (ISO)
     vorher: dict = {d["id"]: d for d in (zustand.get("liste") or [])}
+    if zustand.get("filterVersion") != FILTER_VERSION:
+        vorher = {}
     erster_lauf = not bekannt
 
     gefunden, status = sammeln(konfig)
@@ -426,11 +507,12 @@ def lauf(args) -> int:
 
     if args.trocken:
         _ausgeben(liste, neue, status, dauer)
-        _lokal_schreiben({"bekannt": bekannt, "liste": liste})
+        _lokal_schreiben({"bekannt": bekannt, "liste": liste, "filterVersion": FILTER_VERSION})
         return 0
 
     fb.schreibe([("meta/stellen", meta, None),
-                 ("intern/stellen_zustand", {"bekannt": bekannt, "liste": liste, "letzterLauf": t}, None)])
+                 ("intern/stellen_zustand", {"bekannt": bekannt, "liste": liste, "letzterLauf": t,
+                                           "filterVersion": FILTER_VERSION}, None)])
     fehler = 0
     for titel, text, daten in push_texte(neue):
         try:
@@ -478,6 +560,10 @@ def _ausgeben(liste, neue, status, dauer) -> None:
         if d["aktiv"]:
             en = " [EN Pflicht]" if d.get("englischPflicht") else ""
             print(f"{d['land']:2} {d['sprache']} {d['firma'][:28]:28} | {d['titel'][:80]}{en}")
+    if abgelehnt:
+        print(f"\nNach Prüfung der Beschreibung aussortiert ({len(abgelehnt)}):")
+        for st, grund in abgelehnt:
+            print(f"  - {st.firma[:28]:28} | {st.titel[:70]}  [{grund}]")
 
 
 def main() -> int:

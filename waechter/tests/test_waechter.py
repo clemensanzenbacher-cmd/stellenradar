@@ -28,6 +28,24 @@ class FilterTest(unittest.TestCase):
                       "Praktikant Bauingenieurwesen 4-6 Monate"]:
             self.assertFalse(w.passt(titel)[0], titel)
 
+    def test_volltext(self):
+        # Politikwissenschaft in der Beschreibung: raus
+        self.assertFalse(w.passt_volltext(
+            "Praktikum Projektentwicklung (m/w/d)",
+            "Du studierst Politikwissenschaften oder Sozialwissenschaften und interessierst dich für Projekte.")[0])
+        # Maschinenbau in der Beschreibung: drin
+        self.assertTrue(w.passt_volltext(
+            "Praktikum Entwicklung (m/w/d)",
+            "Studium Maschinenbau oder Mechatronik, erste Erfahrung mit SolidWorks oder CATIA.")[0])
+        # Gemischte Studienrichtungen mit klarem Ingenieurbezug: drin
+        self.assertTrue(w.passt_volltext(
+            "Trainee Produktion",
+            "Studium Maschinenbau, Wirtschaftsingenieurwesen oder Betriebswirtschaft.")[0])
+        # Beschreibung ohne jeden Maschinenbau-Bezug: raus
+        self.assertFalse(w.passt_volltext("Praktikum Qualität", "Du unterstützt unser Team im Alltag.")[0])
+        # Fremdes Fach im Titel lässt sich nicht durch die Beschreibung retten
+        self.assertFalse(w.passt("AI Agent Builder Graduate Opportunity", "Simulation of agents")[0])
+
     def test_sprache(self):
         self.assertEqual(w.sprache("Praktikum im Bereich Konstruktion (m/w/d)"), "de")
         self.assertEqual(w.sprache("Intern Materials & Processes Engineer"), "en")
