@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
-    id("com.google.gms.google-services")
 }
 
 android {
@@ -26,7 +25,7 @@ android {
 
     buildTypes {
         release {
-            // Private App: mit dem Debug-Schlüssel signiert, damit `flutter build apk --release` sofort geht.
+            // Private App: mit dem Debug-SchlÃ¼ssel signiert, damit `flutter build apk --release` sofort geht.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

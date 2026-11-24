@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'daten.dart';
+import 'firebase_optionen.dart';
 import 'push.dart';
 import 'screens/shell.dart';
 import 'screens/stelle_blatt.dart';
@@ -83,7 +84,7 @@ class _StartrahmenState extends State<Startrahmen> {
     try {
       _setze('Verbinde mit Firebase …');
       if (Firebase.apps.isEmpty) {
-        await Firebase.initializeApp().timeout(const Duration(seconds: 20));
+        await Firebase.initializeApp(options: firebaseOptionen).timeout(const Duration(seconds: 20));
       }
       _setze('Lade Einstellungen …');
       SharedPreferences? prefs;
